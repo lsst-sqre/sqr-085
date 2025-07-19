@@ -5,11 +5,12 @@ USDF EFD storage requirements
 
 .. abstract::
 
-   We analyze the data throughput to the EFD from data collected in 2023, and based on the current project schedule and the InfluxDB Enterprise setup at USDF, we estimate the storage growth for 2024 and 2025.
-   The main conclusion from this analysis is that we expect an average throughput of 565 GB/week or 30TB/year during survey operations.
-   The short-term recommendation to USDF is to increase the InfluxDB Enterprise cluster's total storage capacity from 60TB to 100TB in 2024, and to 160TB in 2025.
-   We hope that the information presented in this document will help the Summit software teams review the CSCs' implementation, aiming to reduce the data throughput, particularly for the MTM1M3 CSC.
-   Finally, we recommend monitoring the EFD data throughput regularly to ensure that the storage requirements are sufficient and to inform the USDF with enough time for the necessary upgrades.
+
+   We have analyzed the EFD data collected over the past few years and estimated the expected storage growth for the EFD at the USDF during survey operations. The peak average throughput observed is approximately 600 GB per week. Assuming this rate remains constant, we project an annual storage growth of about 30 TB.
+   As of now, the EFD at the USDF contains approximately 30 TB of data, and we have recently expanded its storage capacity to 100 TB, which should be sufficient through the end of 2026.
+   We recommend that the USDF begin planning for a migration from InfluxDB v1 Enterprise to InfluxDB v3 Enterprise. The newer version supports object store for persistence and is generally a better fit for Kubernetes-based deployments.
+   Additionally, we believe the information presented in this document can support the T&S software team in reviewing the CSCs' implementations, with a particular focus on optimizing data throughput for the MTM1M3 CSC.
+   Finally, we recommend regularly monitoring EFD data rates to ensure storage capacity remains adequate and to inform the USDF of any infrastructure upgrades needed well in advance.
 
 
 Introduction
@@ -32,13 +33,12 @@ The data throughput from the CSCs at a given time is a function of the number of
 The assumption that the CSCs are always enabled and produce data at a constant rate is not accurate and would lead to an overestimation of the EFD storage requirements, especially considering several years of data collection.
 In reality, even during the survey operations CSCs will transition between enable and disable states based on the operational needs the observatory.
 
-A better approach for estimating the EFD storage requirements is based on data collected so far.
-In 2023 we had test campaigns for the M1M3, TMA, M2 and AuxTel runs that can be used to measure the actual data trhoughput to the EFD and help to estimate the storage requirements at USDF for the next few years.
+A better approach for estimating the EFD storage requirements is based on the actual data collection.
 
 Weekly average throughput
 -------------------------
 
-A weekly average data throuput smooths out daily fluctuations in the data and aligns well with Summit activities that are planned on a weekly basis.
+A weekly average data throughput smooths out daily fluctuations in the data and aligns well with Summit activities that are planned on a weekly basis.
 
 Because the EFD data is organized in shards partitioned by time, and the duration of a shard in the EFD is seven days, the size of the EFD shards over time is a direct measure of the weekly average throughput.
 
@@ -48,32 +48,33 @@ The size of the shards can be determined using the `influx_inspect`_ disk utilit
 
    $ influx_inspect report-disk /var/lib/influxdb/
 
-
-The current size of the EFD database at USDF is 17.4TB from data collected since 2021-09-13 to the present.
-Figure 1 shows the size of the EFD shards for data collected over the past year.
-
-.. image:: efdshards.png
-   :width: 800
-   :align: center
-   :alt: Size of EFD shards for data collected over the past year.
+In 2023 we had test campaigns for the M1M3, TMA, M2 and AuxTel runs that were used to measure the data throughput to the EFD and helped to estimate the storage requirements at USDF for 2024 and 2025. 
 
 
-Figure 1 shows an average throughput of 250GB/week and a total of ~13TB collected in 2023.
 
-In 2024, we expect to collect about 50% more data than in 2023 or ~20TB with ComCam being reinstalled on the TMA followed by tests with the TMA, M1M3 and M2.
+Figure 1 shows the size of the EFD shards for data collected over the past few years.
+Comparing the amount of data collected during these campaigns with the data collected in late 2024 with ComCam on-sky and early 2025 with LSSTCam on-sky confirms this approach.
+We expect a nearly constant data throughput ~600 GB/week during survey operations.
 
-The largest shard in Figure 1 is shard 59 with 565 GB, corresponding to the week of 2023-11-27 to 2023-12-04 when we collected data from TMA, M1M3, and M2 tests simultaneously with an Auxtel run that week.
+The current size of the EFD database at USDF is 31TB.
 
-Using shard 59 as a reference, 565 GB/week or 30TB/year is probably close to the total throughput we will have during survey operations. This conclusion is supported by the fact that M1M3 is the largest contributor to the EFD data throughput as discussed in the next section.
 
-However, some systems, such as the MTRotator and LSSTCam, have not been fully exercised yet, and it is unclear at this point how much they will contribute to the total throughput. An yearly reevaluation of these results is thus highly recommended.
+.. figure:: efdshards.png
+   
+   Size of EFD shards for data collected over time.
+
+
+The largest shard in Figure 1 corresponds the the first week of July with 578 GB.
+
+Using this shard reference, 578 GB/week or 30TB/year is probably close to the total throughput we will have during survey operations. This is also supported by the fact that M1M3 is the largest contributor to the EFD data throughput as discussed in the next section.
+
 
 Relative throughput and the case of M1M3
 ----------------------------------------
 
-On 2023-12-04, we also measured the relative throughput from the CSCs, which was determined from the size of individual topics retained in Kafka for 72h.
+On 2023-12, during a test campaign, we measured the relative throughput from the CSCs, which was determined from the size of individual topics retained in Kafka for 72h. This date was chosen as it coincided with a period of stable operations and high data activity, providing a representative sample for analysis.
 
-The tables listing the sizes of telemetry and event topics from that period are presented in the Appendix A. Here we summarize those results showing the relative throughput per CSC.
+The tables listing the sizes of telemetry and event topics from that period are presented in Appendix A. Below is a summary of the relative throughput per CSC based on the measurements.
 
 .. csv-table:: Relative throughput of telemetry data per CSC
    :header: "**CSC**", "**Size (MB)**", "**% of total**"
@@ -103,51 +104,38 @@ The data throughput from the CSCs is also shown in Sankey diagrams representing 
 EFD storage growth estimation
 =============================
 
-The EFD storage requirements are estimated based on the EFD data collected in 2023, current project schedule and also considering the `InfluxDB Enterprise cluster`_ setup, the license model, and safety margins.
+The EFD storage requirements are estimated based on the EFD data collection (see Figure 1), current project schedule and also considering the `InfluxDB Enterprise cluster`_ setup, the license model, and safety margins.
 
-In the current InfluxDB Enterprise setup at USDF, we use 2x8-core nodes with 30 TB of local SSD storage each and a replication factor of 2 for redundancy. The InfluxDB Enterprise license model is based on the number of cores used in the cluster. The current production license allows for 16 cores. If needed, we can add two more data nodes to the cluster in a 4x4-core nodes setup to increase the storage capacity while keeping the same replicator factor.
+In the current InfluxDB Enterprise setup at USDF, we use 2x8-core nodes with 100 TB of local SSD storage each and a replication factor of 2 for redundancy. 
+
+The InfluxDB Enterprise license model is based on the number of cores used in the cluster. The current production license allows for 16 cores. If needed, we can add two more data nodes to the cluster in a 4x4-core nodes setup to increase the storage capacity while keeping the same replicator factor.
 
 A commonly advised practice is to include a safety margin of around 20% to 50% to account for unexpected data growth.
 
-Table 1 shows the estimated storage growth for the EFD data at the USDF, considering an increase of 20 TB in 2024 and 30TB/year during survey operations, a replication factor of 2, and a safety margin of 15 TB.
+Table 1 shows the estimated storage growth for the EFD data at the USDF, considering an increase of 30 TB/year during survey operations, a replication factor of 2, and a safety margin of 15 TB.
 
 .. csv-table:: Estimated storage growth for the EFD at the USDF
-   :header: "**Year**", "**RF**", "**Storage size per data node (TB)**", "**Total cluster storage size (TB)**"
-   :widths: 10, 5, 10, 10
+   :header: "**Year**", "**RF**",  "**Total storage (TB)**", "**Main drivers**"
+   :widths: 10, 5, 10, 50
 
-   2023, 2, 30, 60
-   2024, 2, 50, 100
-   **2025**, **2**, **80**, **160**
-   2026, 2, 110, 220
-   2027, 2, 140, 280
-   2028, 2, 170, 340
-   2029, 2, 200, 400
-   2030, 2, 230, 460
-   2031, 2, 260, 520
-   2032, 2, 290, 580
-   2033, 2, 320, 640
-   2034, 2, 350, 700
-   2035, 2, 380, 760
+   2024, 2, 60, M1M3+TMA+M2+AuxTel
+   **2025**, **2**, **100**, **Survey Operations**
+   2026, 2, 160, Survey Operations
+   2035, 2, 700-1000, Survey Operations
 
 Recommendations
 ===============
 
-Considering the current project schedule, we recommend increasing the total cluster storage capacity from 60 TB to 100 TB in 2024 and to 160 TB in 2025 when survey operations start.
-The most cost-effective solution to scaling the storage size in the current InfluxDB Enterprise cluster is to add more disks or replace the existing ones with larger-capacity disks.
-Current NVMe SSD technology allows 30 TB on a single disk, and storage capacity will continue to increase.
-USDF should consider the viability of this solution now to increase the InfluxDB Enterprise cluster storage capacity to 100 TB in 2024 and to 160 TB in 2025.
-Currently, the cluster has 60TB of storage capacity and 56% of usage.
+We recommend that the USDF begin planning for a migration from InfluxDB v1 Enterprise to InfluxDB v3 Enterprise. 
+The newer version supports object store for persistence and is generally a better fit for Kubernetes-based deployments.
 
+Additionally, we believe the information presented in this document can support the T&S software team in reviewing the CSCs' implementations, with a particular focus on optimizing data throughput for the MTM1M3 CSC.
 To reduce the long-term storage requirements for the EFD, we recommend that the Summit software teams review and optimize the CSCs data throughput.
 This can be achieved by reducing the frequency at which the messages are produced and by reducing the size of the messages produced for each topic if possible.
 A reduction factor of X in the total CSC throughput reduces the storage requirements for the EFD by 2X for a replication factor of 2 or 4X if a replication factor of 4 is used for the InfluxDB Enterprise cluster in the future.
 
-We recommend monitoring the EFD data throughput and the storage available on the InfluxDB Enterprise cluster on a regular basis and reevalute the conclusions presented in this document to ensure that the storage requirements for the EFD are adequate for the data being collected and to inform USDF with enough time to plan for the necessary upgrades.
+Finally, we recommend monitoring the EFD data throughput and the storage available on the InfluxDB Enterprise cluster on a regular basis and reevaluate the conclusions presented in this document to ensure that the storage requirements for the EFD are adequate for the data being collected and to inform USDF of any infrastructure upgrades needed well in advance.
 
-We also recommend more investigation and consultation with InfluxData support on how to organize the EFD data at USDF.
-A single EFD database is challenging to maintain as the data grows (`DM-39518`_).
-Spliting the EFD data into multiple databases improves the data manageability.
-A possible approach is to split the EFD data by subsystem (e.g. M1M3, MainTel, AuxTel) and partition larger databases by time (e.g. yearly) to keep the size of each database partition under ~30TB.
 
 .. _DM-41835: https://jira.lsstcorp.org/browse/DM-41835
 .. _InfluxDB Enterprise cluster: https://docs.influxdata.com/enterprise_influxdb/v1/concepts/clustering/
